@@ -13,14 +13,13 @@ return new class extends Migration
     {
         if (Schema::hasTable('social_family_connections')) {
             Schema::table('social_family_connections', function (Blueprint $table) {
-                // if an old default-named index made it into the database we need to
-                // remove it before adding a properly named, shorter index.
-                // Using dropIndex with the column list will generate the same long
-                // identifier Laravel would have used originally, so it will be
-                // dropped if present and ignored otherwise.
-                $table->dropIndex(['connected_account_id', 'matched_social_id']);
+                // drop the short index if it exists; this avoids ever mentioning the
+                // long, auto-generated name which MySQL refuses to parse.
+                // We use the explicit name so Laravel doesn't build the default one.
+                $table->dropIndex('sfc_account_social_id_idx');
 
-                // add the newer short name; if it's already there this is a no-op
+                // now ensure the properly named, shorter index is present. If it
+                // already exists the builder will ignore the second creation.
                 $table->index(
                     ['connected_account_id', 'matched_social_id'],
                     'sfc_account_social_id_idx'
@@ -36,10 +35,10 @@ return new class extends Migration
     {
         if (Schema::hasTable('social_family_connections')) {
             Schema::table('social_family_connections', function (Blueprint $table) {
+                // simply remove the fixed index; the original long-named index
+                // cannot be created on MySQL, so we don't attempt to recreate it
+                // during rollback. This keeps the rollback safe and idempotent.
                 $table->dropIndex('sfc_account_social_id_idx');
-                // restore the original index name (long) so the rollback restores
-                // the previous state exactly; Laravel will recompute it for us.
-                $table->index(['connected_account_id', 'matched_social_id']);
             });
         }
     }
