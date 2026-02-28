@@ -56,7 +56,18 @@ return new class extends Migration
                 foreach ($indexes as [$columns, $name]) {
                     // drop any auto-generated long form if present
                     $longName = $tableName . '_' . implode('_', $columns) . '_index';
-                    DB::statement("DROP INDEX IF EXISTS `$longName` ON `$tableName`");
+                    // older MySQL versions do not support "IF EXISTS" on DROP
+                    // INDEX, so check information_schema first and only run the
+                    // ALTER when the index is present.
+                    $dbName = DB::getDatabaseName();
+                    $idxExists = DB::selectOne(
+                        'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                        [$dbName, $tableName, $longName]
+                    );
+                    if ($idxExists) {
+                        DB::statement("ALTER TABLE `$tableName` DROP INDEX `$longName`");
+                    }
 
                     // create the index with the explicit name; if it already
                     // exists this will quietly do nothing
@@ -90,14 +101,20 @@ return new class extends Migration
             'virtual_events_team_status_idx',
             'virtual_events_start_end_idx',
         ] as $idx) {
-            // can't easily know which table the index belongs to, so run a
-            // blind ALTER. If it fails because the index doesn't exist we'll
-            // ignore it (the statement is wrapped in try/catch).
-            // We prefer DB::statement so we can use IF EXISTS safely.
-            // Extract table name from index naming convention.
+            // determine table name from index naming convention
             $parts = explode('_', $idx);
             $tableName = $parts[0];
-            DB::statement("DROP INDEX IF EXISTS `$idx` ON `$tableName`");
+
+            // check existence via information_schema before trying to drop
+            $dbName = DB::getDatabaseName();
+            $idxExists = DB::selectOne(
+                'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                [$dbName, $tableName, $idx]
+            );
+            if ($idxExists) {
+                DB::statement("ALTER TABLE `$tableName` DROP INDEX `$idx`");
+            }
         }
     }
 };
