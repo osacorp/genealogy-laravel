@@ -69,9 +69,15 @@ return new class extends Migration
                         DB::statement("ALTER TABLE `$tableName` DROP INDEX `$longName`");
                     }
 
-                    // create the index with the explicit name; if it already
-                    // exists this will quietly do nothing
-                    $table->index($columns, $name);
+                    // only add the explicit index if it doesn't already exist
+                    $nameExists = DB::selectOne(
+                        'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                        [$dbName, $tableName, $name]
+                    );
+                    if (!$nameExists) {
+                        $table->index($columns, $name);
+                    }
                 }
             });
         }
