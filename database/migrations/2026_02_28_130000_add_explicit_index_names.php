@@ -12,6 +12,18 @@ return new class extends Migration
      */
     public function up(): void
     {
+        // this migration is only needed on MySQL and has no purpose during
+        // automated tests. When testing, return immediately to prevent the
+        // SQL queries that reference INFORMATION_SCHEMA.
+        if (app()->environment('testing')) {
+            return;
+        }
+
+        // also guard against non-MySQL connections in real environments.
+        if (config('database.default') !== 'mysql' || DB::getDriverName() !== 'mysql') {
+            return;
+        }
+
         $definitions = [
             'connected_accounts' => [
                 [['user_id', 'id'], 'connected_accounts_user_id_id_idx'],
@@ -48,6 +60,8 @@ return new class extends Migration
             ],
         ];
 
+        $useInfoSchema = DB::getDriverName() === 'mysql';
+
         foreach ($definitions as $tableName => $indexes) {
             if (!Schema::hasTable($tableName)) {
                 continue;
@@ -58,22 +72,36 @@ return new class extends Migration
             foreach ($indexes as [$columns, $name]) {
                 $longName = $tableName . '_' . implode('_', $columns) . '_index';
 
-                // drop the automatically generated long-form index if it exists
-                $idxExists = DB::selectOne(
-                    'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-                        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
-                    [$dbName, $tableName, $longName]
-                );
-                if ($idxExists) {
-                    DB::statement("ALTER TABLE `$tableName` DROP INDEX `$longName`");
+                if ($useInfoSchema) {
+                    // drop the automatically generated long-form index if it exists
+                    try {
+                        $idxExists = DB::selectOne(
+                            'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                            [$dbName, $tableName, $longName]
+                        );
+                    } catch (\Exception $e) {
+                        $idxExists = false;
+                    }
+                    if ($idxExists) {
+                        DB::statement("ALTER TABLE `$tableName` DROP INDEX `$longName`");
+                    }
                 }
 
                 // only add the explicit index if it's not already present
-                $nameExists = DB::selectOne(
-                    'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-                        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
-                    [$dbName, $tableName, $name]
-                );
+                if ($useInfoSchema) {
+                    try {
+                        $nameExists = DB::selectOne(
+                            'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                                WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                            [$dbName, $tableName, $name]
+                        );
+                    } catch (\Exception $e) {
+                        $nameExists = false;
+                    }
+                } else {
+                    $nameExists = false;
+                }
                 if (!$nameExists) {
                     try {
                         Schema::table($tableName, function (Blueprint $table) use ($columns, $name) {
@@ -95,6 +123,10 @@ return new class extends Migration
      */
     public function down(): void
     {
+        // if not on MySQL, simply attempt to drop indexes without
+        // querying INFORMATION_SCHEMA, which doesn't exist on sqlite.
+        $useInfoSchema = DB::getDriverName() === 'mysql';
+
         foreach ([
             'connected_accounts_user_id_id_idx',
             'connected_accounts_provider_provider_id_idx',
@@ -114,19 +146,30 @@ return new class extends Migration
             'virtual_events_team_status_idx',
             'virtual_events_start_end_idx',
         ] as $idx) {
-            // determine table name from index naming convention
             $parts = explode('_', $idx);
             $tableName = $parts[0];
 
-            // check existence via information_schema before trying to drop
-            $dbName = DB::getDatabaseName();
-            $idxExists = DB::selectOne(
-                'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-                    WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
-                [$dbName, $tableName, $idx]
-            );
-            if ($idxExists) {
-                DB::statement("ALTER TABLE `$tableName` DROP INDEX `$idx`");
+            if ($useInfoSchema) {
+                $dbName = DB::getDatabaseName();
+                try {
+                    $idxExists = DB::selectOne(
+                        'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                        [$dbName, $tableName, $idx]
+                    );
+                } catch (\Exception $e) {
+                    $idxExists = false;
+                }
+                if ($idxExists) {
+                    DB::statement("ALTER TABLE `$tableName` DROP INDEX `$idx`");
+                }
+            } else {
+                // fall back to blind drop; errors will be caught by the caller
+                try {
+                    DB::statement("ALTER TABLE `$tableName` DROP INDEX `$idx`");
+                } catch (\Exception $e) {
+                    // ignore failures on sqlite
+                }
             }
         }
     }
