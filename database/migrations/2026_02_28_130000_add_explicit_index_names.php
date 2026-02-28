@@ -52,34 +52,34 @@ return new class extends Migration
             if (!Schema::hasTable($tableName)) {
                 continue;
             }
-            Schema::table($tableName, function (Blueprint $table) use ($indexes, $tableName) {
-                foreach ($indexes as [$columns, $name]) {
-                    // drop any auto-generated long form if present
-                    $longName = $tableName . '_' . implode('_', $columns) . '_index';
-                    // older MySQL versions do not support "IF EXISTS" on DROP
-                    // INDEX, so check information_schema first and only run the
-                    // ALTER when the index is present.
-                    $dbName = DB::getDatabaseName();
-                    $idxExists = DB::selectOne(
-                        'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-                            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
-                        [$dbName, $tableName, $longName]
-                    );
-                    if ($idxExists) {
-                        DB::statement("ALTER TABLE `$tableName` DROP INDEX `$longName`");
-                    }
 
-                    // only add the explicit index if it doesn't already exist
-                    $nameExists = DB::selectOne(
-                        'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
-                            WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
-                        [$dbName, $tableName, $name]
-                    );
-                    if (!$nameExists) {
-                        $table->index($columns, $name);
-                    }
+            $dbName = DB::getDatabaseName();
+
+            foreach ($indexes as [$columns, $name]) {
+                $longName = $tableName . '_' . implode('_', $columns) . '_index';
+
+                // drop the automatically generated long-form index if it exists
+                $idxExists = DB::selectOne(
+                    'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                    [$dbName, $tableName, $longName]
+                );
+                if ($idxExists) {
+                    DB::statement("ALTER TABLE `$tableName` DROP INDEX `$longName`");
                 }
-            });
+
+                // only add the explicit index if it's not already present
+                $nameExists = DB::selectOne(
+                    'SELECT 1 FROM INFORMATION_SCHEMA.STATISTICS
+                        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND INDEX_NAME = ?',
+                    [$dbName, $tableName, $name]
+                );
+                if (!$nameExists) {
+                    Schema::table($tableName, function (Blueprint $table) use ($columns, $name) {
+                        $table->index($columns, $name);
+                    });
+                }
+            }
         }
     }
 
