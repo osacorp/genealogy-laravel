@@ -80,7 +80,8 @@ return new class extends Migration
                             $table->index($columns, $name);
                         });
                     } catch (\Illuminate\Database\QueryException $e) {
-                        if ($e->getCode() !== '1061') {
+                        $mysqlCode = $e->errorInfo[1] ?? null;
+                        if ($mysqlCode !== 1061) {
                             throw $e;
                         }
                     }
