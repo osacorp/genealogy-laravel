@@ -24,15 +24,23 @@ return new class extends Migration
             );
 
             if (!$exists) {
-                Schema::table('social_family_connections', function (Blueprint $table) {
-                    // the previously-added index already has the correct short name.
-                    // dropping it can fail if MySQL is using it for the foreign-key
-                    // on connected_account_id, so we simply avoid removing it here.
-                    $table->index(
-                        ['connected_account_id', 'matched_social_id'],
-                        'sfc_account_social_id_idx'
-                    );
-                });
+                try {
+                    Schema::table('social_family_connections', function (Blueprint $table) {
+                        // the previously-added index already has the correct short name.
+                        // dropping it can fail if MySQL is using it for the foreign-key
+                        // on connected_account_id, so we simply avoid removing it here.
+                        $table->index(
+                            ['connected_account_id', 'matched_social_id'],
+                            'sfc_account_social_id_idx'
+                        );
+                    });
+                } catch (\Illuminate\Database\QueryException $e) {
+                    // ignore duplicate-key errors (1061) which can happen if the
+                    // index already exists but we couldn't detect it earlier.
+                    if ($e->getCode() !== '1061') {
+                        throw $e;
+                    }
+                }
             }
         }
     }

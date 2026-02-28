@@ -75,9 +75,15 @@ return new class extends Migration
                     [$dbName, $tableName, $name]
                 );
                 if (!$nameExists) {
-                    Schema::table($tableName, function (Blueprint $table) use ($columns, $name) {
-                        $table->index($columns, $name);
-                    });
+                    try {
+                        Schema::table($tableName, function (Blueprint $table) use ($columns, $name) {
+                            $table->index($columns, $name);
+                        });
+                    } catch (\Illuminate\Database\QueryException $e) {
+                        if ($e->getCode() !== '1061') {
+                            throw $e;
+                        }
+                    }
                 }
             }
         }
