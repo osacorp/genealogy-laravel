@@ -13,13 +13,11 @@ return new class extends Migration
     {
         if (Schema::hasTable('social_family_connections')) {
             Schema::table('social_family_connections', function (Blueprint $table) {
-                // drop the short index if it exists; this avoids ever mentioning the
-                // long, auto-generated name which MySQL refuses to parse.
-                // We use the explicit name so Laravel doesn't build the default one.
-                $table->dropIndex('sfc_account_social_id_idx');
-
-                // now ensure the properly named, shorter index is present. If it
-                // already exists the builder will ignore the second creation.
+                // the previously-added index already has the correct short name.
+                // dropping it can fail if MySQL is using it for the foreign-key
+                // on connected_account_id, so we simply avoid removing it here.
+                // Laravel will ignore attempts to recreate an existing index, so
+                // the call below is safe in all cases.
                 $table->index(
                     ['connected_account_id', 'matched_social_id'],
                     'sfc_account_social_id_idx'
