@@ -7,15 +7,19 @@ use App\Jobs\ExportGedCom;
 use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 class GedcomResourceTest extends TestCase
 {
-    #[\Override]
+    use RefreshDatabase;
+
     protected function setUp(): void
     {
         parent::setUp();
         Queue::fake();
+        // ensure migrations have been run
+        $this->artisan('migrate');
     }
 
     public function testExportGedcomDispatchesJobWithAuthenticatedUser(): void
@@ -31,7 +35,7 @@ class GedcomResourceTest extends TestCase
     public function testExportGedcomFailsWithoutAuthenticatedUser(): void
     {
         Auth::logout();
-        
+
         GedcomResource::exportGedcom();
 
         Queue::assertNotPushed(ExportGedCom::class);

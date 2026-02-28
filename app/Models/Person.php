@@ -13,6 +13,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Person extends Model
 {
+    /**
+     * The table associated with the model. Migrations create a "persons"
+     * table, but the default pluralization would be "people", so we must
+     * override it to avoid runtime errors when querying.
+     */
+    protected $table = 'persons';
+
     use HasFactory;
     use BelongsToTenant;
 

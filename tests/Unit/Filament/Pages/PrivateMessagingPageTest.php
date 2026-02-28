@@ -4,10 +4,13 @@ namespace Tests\Unit\Filament\Pages;
 
 use App\Filament\Pages\PrivateMessagingPage;
 use App\Models\Message;
-use PHPUnit\Framework\TestCase;
+use Tests\TestCase;
 
 class PrivateMessagingPageTest extends TestCase
 {
+    // database interactions may be necessary for this page
+    use \Illuminate\Foundation\Testing\RefreshDatabase;
+
     public function test_mount(): void
     {
         // Create an instance of PrivateMessagingPage
