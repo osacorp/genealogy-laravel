@@ -22,11 +22,11 @@ class RecordTypeResource extends Resource
 {
     protected static ?string $model = RecordType::class;
 
-    protected static ?string $navigationIcon = 'heroicon-o-archive-box';
+    protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-archive-box';
 
     protected static ?string $navigationLabel = 'Record Types';
 
-    protected static ?string $navigationGroup = '⚙️ Settings';
+    protected static string|\UnitEnum|null $navigationGroup = '⚙️ Settings';
 
     protected static ?int $navigationSort = 90;
 

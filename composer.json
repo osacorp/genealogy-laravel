@@ -14,6 +14,7 @@
         "filament/filament": "^5.1",
         "filament/spatie-laravel-settings-plugin": "^5.0",
         "guzzlehttp/guzzle": "^7.8",
+        "joelbutcher/socialstream": "*",
         "laravel/cashier": "^16.0",
         "laravel/framework": "^12",
         "laravel/jetstream": "^5.0",
